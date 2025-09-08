@@ -13,12 +13,17 @@ urlpatterns = [
     path("customers/export/", views.customers_export, name="customers_export"),
     path("customers/<int:pk>/", views.customer_detail, name="customer_detail"),
     path("customers/<int:pk>/edit/", views.customer_edit, name="customer_edit"),
+    path("customers/<int:pk>/delete/", views.customer_delete, name="customer_delete"),
+    path("customers/<int:pk>/note/", views.add_customer_note, name="add_customer_note"),
+    path("customers/<int:customer_id>/note/<int:note_id>/delete/", views.delete_customer_note, name="delete_customer_note"),
     path("customers/<int:pk>/order/new/", views.create_order_for_customer, name="create_order_for_customer"),
 
     path("orders/", views.orders_list, name="orders_list"),
     path("orders/export/", views.orders_export, name="orders_export"),
     path("orders/new/", views.order_start, name="order_start"),
     path("orders/<int:pk>/", views.order_detail, name="order_detail"),
+    path("orders/<int:pk>/edit/", views.order_edit, name="order_edit"),
+    path("orders/<int:pk>/delete/", views.order_delete, name="order_delete"),
     path("orders/<int:pk>/status/", views.update_order_status, name="update_order_status"),
 
     path("analytics/", views.analytics, name="analytics"),
@@ -40,6 +45,12 @@ urlpatterns = [
 
     # Admin-only Organization Management
     path("organization/", views.organization_management, name="organization"),
+
+    # Vehicle management
+    path("vehicles/<int:customer_id>/add/", views.vehicle_add, name="vehicle_add"),
+    path("vehicles/<int:pk>/edit/", views.vehicle_edit, name="vehicle_edit"),
+    path("vehicles/<int:pk>/delete/", views.vehicle_delete, name="vehicle_delete"),
+    path("api/customers/<int:customer_id>/vehicles/", views.api_customer_vehicles, name="api_customer_vehicles"),
 
     # User management (admin)
     path("users/", views.users_list, name="users_list"),

@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+import uuid
 
 
 class Customer(models.Model):
@@ -24,7 +25,13 @@ class Customer(models.Model):
     phone = models.CharField(max_length=20)
     email = models.EmailField(blank=True, null=True)
     address = models.TextField(blank=True, null=True)
-    notes = models.TextField(blank=True, null=True)
+
+    # keep this as "notes" so your forms work, but mark as deprecated
+    notes = models.TextField(
+        blank=True,
+        null=True,
+        help_text='General notes about the customer (deprecated, use CustomerNote model instead)'
+    )
 
     customer_type = models.CharField(max_length=20, choices=TYPE_CHOICES, null=True, blank=True)
     organization_name = models.CharField(max_length=255, blank=True, null=True)
@@ -41,9 +48,7 @@ class Customer(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.code:
-            import uuid
             self.code = f"CUST{str(uuid.uuid4())[:8].upper()}"
-            # Ensure uniqueness
             while Customer.objects.filter(code=self.code).exists():
                 self.code = f"CUST{str(uuid.uuid4())[:8].upper()}"
         if not self.arrival_time:
@@ -127,14 +132,11 @@ class Order(models.Model):
     def save(self, *args, **kwargs):
         creating = self._state.adding
         if not self.order_number:
-            import uuid
             self.order_number = f"ORD{str(uuid.uuid4())[:8].upper()}"
-            # Ensure uniqueness
             while Order.objects.filter(order_number=self.order_number).exists():
                 self.order_number = f"ORD{str(uuid.uuid4())[:8].upper()}"
         super().save(*args, **kwargs)
         if creating:
-            # Update visit tracking
             self.customer.total_visits = (self.customer.total_visits or 0) + 1
             self.customer.last_visit = timezone.now()
             self.customer.save()
@@ -152,6 +154,23 @@ class Order(models.Model):
             models.Index(fields=["customer", "created_at"], name="idx_order_cust_created"),
             models.Index(fields=["type", "status"], name="idx_order_type_status"),
         ]
+
+
+class CustomerNote(models.Model):
+    """Model to store notes for customers"""
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='notes_history')
+    note = models.TextField()
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='notes_created')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Customer Note'
+        verbose_name_plural = 'Customer Notes'
+
+    def __str__(self):
+        return f'Note for {self.customer.full_name} by {self.created_by.username if self.created_by else "System"}'
 
 
 class InventoryItem(models.Model):

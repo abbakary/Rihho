@@ -11,8 +11,10 @@ import json
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User, Group
 from django.core.paginator import Paginator
-from django.shortcuts import get_object_or_404, redirect, render
-from .models import Customer, Order, Vehicle, InventoryItem
+from django.shortcuts import get_object_or_404, redirect, render, reverse
+from django.contrib import messages
+from .models import Customer, Order, Vehicle, InventoryItem, CustomerNote
+from .forms import VehicleForm
 from .forms import (
     CustomerStep1Form,
     CustomerStep2Form,
@@ -124,15 +126,61 @@ def dashboard(request: HttpRequest):
     pending_count = status_counts.get("created", 0)
     in_progress_count = status_counts.get("in_progress", 0)
     active_count = status_counts.get("created", 0) + status_counts.get("assigned", 0) + status_counts.get("in_progress", 0)
+    
+    # Get today's customers (max 5)
+    todays_customers = Customer.objects.filter(
+        registration_date__date=today
+    ).order_by('-registration_date')[:5]
+    
+    # Get recent orders
     recent_orders = (
         Order.objects.select_related("customer", "vehicle")
         .exclude(status="completed")
         .order_by("-created_at")[:10]
     )
+    
+    # Get overdue inventory items (items with quantity below threshold)
+    OVERDUE_THRESHOLD = 5  # Define your threshold for overdue items
+    overdue_inventory = (
+        InventoryItem.objects
+        .filter(quantity__lte=OVERDUE_THRESHOLD)
+        .order_by('quantity')[:10]  # Get top 10 most critical items
+    )
+    
     inventory_preview = InventoryItem.objects.order_by("-created_at")[:10]
     can_manage_inventory = (request.user.is_superuser or request.user.groups.filter(name='manager').exists())
     completed = status_counts.get("completed", 0)
     completed_percent = int((completed * 100) / total_orders) if total_orders else 0
+    
+    # Get order statistics for the last 7 days
+    date_range = [today - timezone.timedelta(days=i) for i in range(6, -1, -1)]
+    order_stats = (
+        Order.objects.filter(created_at__date__in=date_range)
+        .values('created_at__date')
+        .annotate(count=Count('id'))
+        .order_by('created_at__date')
+    )
+    
+    # Get top clients (customers with most orders) with their latest order date
+    from django.db.models import Prefetch, Max, F
+    
+    # Get the top 5 customers with their order count and latest order date in a single query
+    top_clients = (
+        Customer.objects
+        .annotate(
+            order_count=Count('orders'),
+            latest_order_date=Max('orders__created_at')
+        )
+        .filter(order_count__gt=0)
+        .order_by('-order_count')[:5]  # Get top 5 clients
+    )
+    
+    # Create a dictionary of date: count
+    order_stats_dict = {stat['created_at__date']: stat['count'] for stat in order_stats}
+    
+    # Fill in missing dates with 0
+    order_stats_data = [order_stats_dict.get(date, 0) for date in date_range]
+    order_dates = [date.strftime('%a, %b %d') for date in date_range]
     charts = {
         "status": {
             "labels": ["Created", "Assigned", "In Progress", "Completed", "Cancelled"],
@@ -177,16 +225,21 @@ def dashboard(request: HttpRequest):
             "status_counts": status_counts,
             "type_counts": type_counts,
             "recent_orders": recent_orders,
+            "todays_customers": todays_customers,
             "completed_percent": completed_percent,
             "charts_json": json.dumps(charts),
             "inventory_preview": inventory_preview,
             "can_manage_inventory": can_manage_inventory,
             "total_stock": total_stock,
+            "order_stats_data": order_stats_data,
+            "order_dates": json.dumps([str(date) for date in order_dates]),
+            "overdue_inventory": overdue_inventory,
+            "overdue_threshold": OVERDUE_THRESHOLD,
+            "top_clients": top_clients,
         },
     )
 
 
-@login_required
 @login_required
 def customers_list(request: HttpRequest):
     from django.db.models import Q
@@ -287,7 +340,84 @@ def customer_detail(request: HttpRequest, pk: int):
     c = get_object_or_404(Customer, pk=pk)
     vehicles = c.vehicles.all()
     orders = c.orders.order_by("-created_at")[:20]
-    return render(request, "tracker/customer_detail.html", {"customer": c, "vehicles": vehicles, "orders": orders})
+    return render(request, "tracker/customer_detail.html", {
+        'customer': c,
+        'vehicles': vehicles,
+        'orders': orders,
+        'page_title': c.full_name,
+    })
+
+
+@login_required
+def add_customer_note(request: HttpRequest, pk: int):
+    """Add or update a note on a customer's profile"""
+    customer = get_object_or_404(Customer, pk=pk)
+    note_id = request.POST.get('note_id')
+    
+    if request.method == 'POST':
+        note_content = request.POST.get('note', '').strip()
+        if note_content:
+            try:
+                if note_id:  # Update existing note
+                    note = get_object_or_404(CustomerNote, id=note_id, customer=customer)
+                    note.content = note_content
+                    note.save()
+                    action = 'updated'
+                else:  # Create new note
+                    note = CustomerNote.objects.create(
+                        customer=customer,
+                        content=note_content,
+                        created_by=request.user
+                    )
+                    action = 'added'
+                
+                # Log the action
+                add_audit_log(
+                    user=request.user,
+                    action_type=f'customer_note_{action}',
+                    description=f'{action.capitalize()} a note for customer {customer.full_name}',
+                    customer_id=customer.id,
+                    note_id=note.id
+                )
+                
+                messages.success(request, f'Note {action} successfully.')
+            except Exception as e:
+                messages.error(request, f'Error saving note: {str(e)}')
+        else:
+            messages.error(request, 'Note content cannot be empty.')
+    
+    # Redirect back to the customer detail page
+    return redirect('tracker:customer_detail', pk=customer.id)
+
+
+def delete_customer_note(request: HttpRequest, customer_id: int, note_id: int):
+    """Delete a customer note"""
+    if request.method == 'POST':
+        try:
+            note = get_object_or_404(CustomerNote, id=note_id, customer_id=customer_id)
+            
+            # Log the action before deletion
+            add_audit_log(
+                user=request.user,
+                action_type='customer_note_deleted',
+                description=f'Deleted a note for customer {note.customer.full_name}',
+                customer_id=customer_id,
+                note_id=note_id
+            )
+            
+            note.delete()
+            return JsonResponse({'success': True})
+            
+        except Exception as e:
+            return JsonResponse(
+                {'success': False, 'error': str(e)}, 
+                status=400
+            )
+    
+    return JsonResponse(
+        {'success': False, 'error': 'Invalid request method'}, 
+        status=405
+    )
 
 
 @login_required
@@ -619,6 +749,63 @@ def order_start(request: HttpRequest):
         return redirect('tracker:order_detail', pk=o.id)
     messages.error(request, 'Please fix form errors and try again')
     return render(request, "tracker/order_create.html", {"customer": c, "form": form})
+
+
+@login_required
+def order_edit(request: HttpRequest, pk: int):
+    """Edit an existing order"""
+    order = get_object_or_404(Order, pk=pk)
+    
+    if request.method == 'POST':
+        form = OrderForm(request.POST, instance=order)
+        if form.is_valid():
+            order = form.save()
+            messages.success(request, 'Order updated successfully.')
+            return redirect('tracker:order_detail', pk=order.pk)
+    else:
+        form = OrderForm(instance=order)
+    
+    # Set the vehicle queryset to only include vehicles for this customer
+    form.fields['vehicle'].queryset = order.customer.vehicles.all()
+    
+    return render(request, 'tracker/order_form.html', {
+        'form': form,
+        'order': order,
+        'title': 'Edit Order',
+        'customer': order.customer
+    })
+
+
+@login_required
+def order_delete(request: HttpRequest, pk: int):
+    """Delete an order"""
+    order = get_object_or_404(Order, pk=pk)
+    customer = order.customer
+    
+    if request.method == 'POST':
+        try:
+            # Log the deletion before actually deleting
+            add_audit_log(
+                request.user,
+                'order_deleted',
+                f'Deleted order {order.order_number} for customer {customer.full_name}',
+                order_id=order.id,
+                customer_id=customer.id
+            )
+        except Exception:
+            pass
+            
+        order.delete()
+        messages.success(request, f'Order {order.order_number} has been deleted.')
+        
+        # Redirect based on the 'next' parameter or to customer detail
+        next_url = request.POST.get('next', None)
+        if next_url:
+            return redirect(next_url)
+        return redirect('tracker:customer_detail', pk=customer.id)
+    
+    # If not a POST request, redirect to order detail
+    return redirect('tracker:order_detail', pk=order.id)
 
 
 @login_required
@@ -956,6 +1143,94 @@ def api_inventory_stock(request: HttpRequest):
         })
     except InventoryItem.DoesNotExist:
         return JsonResponse({'error': 'Item not found'}, status=404)
+
+@login_required
+def vehicle_add(request: HttpRequest, customer_id: int):
+    """Add a new vehicle for a customer"""
+    customer = get_object_or_404(Customer, pk=customer_id)
+    
+    if request.method == 'POST':
+        form = VehicleForm(request.POST)
+        if form.is_valid():
+            vehicle = form.save(commit=False)
+            vehicle.customer = customer
+            vehicle.save()
+            messages.success(request, 'Vehicle added successfully.')
+            return redirect('tracker:customer_detail', pk=customer_id)
+    else:
+        form = VehicleForm()
+    
+    return render(request, 'tracker/vehicle_form.html', {
+        'form': form,
+        'customer': customer,
+        'title': 'Add Vehicle'
+    })
+
+
+@login_required
+def customer_delete(request: HttpRequest, pk: int):
+    """Delete a customer and all associated data"""
+    customer = get_object_or_404(Customer, pk=pk)
+    
+    if request.method == 'POST':
+        # Log the deletion before actually deleting
+        try:
+            add_audit_log(
+                request.user,
+                'customer_deleted',
+                f'Deleted customer {customer.full_name} (ID: {customer.id})',
+                customer_id=customer.id
+            )
+        except Exception:
+            pass
+        
+        # Delete the customer (this will cascade to related objects)
+        customer.delete()
+        messages.success(request, f'Customer {customer.full_name} has been deleted.')
+        return redirect('tracker:customers_list')
+    
+    # If not a POST request, redirect to customer detail
+    return redirect('tracker:customer_detail', pk=customer.id)
+
+
+@login_required
+def vehicle_edit(request: HttpRequest, pk: int):
+    """Edit an existing vehicle"""
+    vehicle = get_object_or_404(Vehicle, pk=pk)
+    
+    if request.method == 'POST':
+        form = VehicleForm(request.POST, instance=vehicle)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Vehicle updated successfully.')
+            return redirect('tracker:customer_detail', pk=vehicle.customer_id)
+    else:
+        form = VehicleForm(instance=vehicle)
+    
+    return render(request, 'tracker/vehicle_form.html', {
+        'form': form,
+        'customer': vehicle.customer,
+        'title': 'Edit Vehicle'
+    })
+
+
+@login_required
+def vehicle_delete(request: HttpRequest, pk: int):
+    """Delete a vehicle"""
+    vehicle = get_object_or_404(Vehicle, pk=pk)
+    customer_id = vehicle.customer_id
+    
+    if request.method == 'POST':
+        vehicle.delete()
+        messages.success(request, 'Vehicle deleted successfully.')
+        return redirect('tracker:customer_detail', pk=customer_id)
+    
+    return render(request, 'tracker/confirm_delete.html', {
+        'object': vehicle,
+        'cancel_url': reverse('tracker:customer_detail', kwargs={'pk': customer_id}),
+        'item_type': 'vehicle'
+    })
+
 
 @login_required
 def api_customer_vehicles(request: HttpRequest, customer_id: int):
