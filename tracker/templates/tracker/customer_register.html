@@ -1,5 +1,6 @@
 {% extends 'tracker/base.html' %}
 {% load static %}
+{% load custom_filters %}
 
 {% block title %}Register Customer{% endblock %}
 
@@ -54,27 +55,179 @@
                     <input type="hidden" name="step" value="{{ step }}">
 
                     {% if step == 1 %}
-                      <div class="mb-3"><label class="form-label">Basic Information</label></div>
-                      <div class="row g-3">
-                        {% for field in form %}
-                          <div class="col-md-{{ 6 if field.name in 'full_name phone'.split else 12 }}">
-                            <label class="form-label">{{ field.label }}</label>
-                            {{ field }}
-                            {% if field.errors %}<div class="text-danger f-12">{{ field.errors|striptags }}</div>{% endif %}
+                      <div class="mb-4">
+                        <h5 class="mb-3"><i class="fa fa-user me-2"></i>Basic Customer Information</h5>
+                        <div class="card">
+                          <div class="card-body">
+                            <div class="row g-3">
+                              <!-- Full Name (Required) -->
+                              <div class="col-md-6">
+                                <div class="form-group">
+                                  <label class="form-label fw-500">
+                                    Full Name <span class="text-danger">*</span>
+                                  </label>
+                                  <input type="text" name="full_name" class="form-control" required
+                                         value="{{ form.full_name.value|default:'' }}"
+                                         placeholder="Enter customer's full name"
+                                         pattern="[A-Za-z\s]{3,}"
+                                         title="Please enter a valid name">
+                                </div>
+                              </div>
+
+                              <!-- Phone Number (Required) -->
+                              <div class="col-md-6">
+                                <div class="form-group">
+                                  <label class="form-label fw-500">
+                                    Phone Number <span class="text-danger">*</span>
+                                  </label>
+                                  <div class="input-group">
+                                    <span class="input-group-text">+255</span>
+                                    <input type="tel" name="phone" class="form-control" required
+                                           pattern="[0-9]{9}" 
+                                           title="Please enter a valid 9-digit phone number"
+                                           value="{{ form.phone.value|default:'' }}"
+                                           placeholder="7XXXXXXXX">
+                                  </div>
+                                  <small class="form-text text-muted">Format: 7XXXXXXXX (9 digits)</small>
+                                </div>
+                              </div>
+
+                              <!-- Email (Optional) -->
+                              <div class="col-md-6">
+                                <div class="form-group">
+                                  <label class="form-label fw-500">
+                                    Email Address
+                                  </label>
+                                  <input type="email" name="email" class="form-control" 
+                                         value="{{ form.email.value|default:'' }}"
+                                         placeholder="example@domain.com">
+                                </div>
+                              </div>
+
+                              <!-- Address (Optional) -->
+                              <div class="col-12">
+                                <div class="form-group">
+                                  <label class="form-label fw-500">
+                                    Address
+                                  </label>
+                                  <textarea name="address" class="form-control" rows="2" 
+                                            placeholder="Enter customer's full address">{{ form.address.value|default:'' }}</textarea>
+                                </div>
+                              </div>
+
+                              <!-- Notes (Optional) -->
+                              <div class="col-12">
+                                <div class="form-group">
+                                  <label class="form-label fw-500">
+                                    Additional Notes
+                                  </label>
+                                  <textarea name="notes" class="form-control" rows="3" 
+                                            placeholder="Any additional information about the customer">{{ form.notes.value|default:'' }}</textarea>
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                        {% endfor %}
+                        </div>
                       </div>
-                      <div class="d-flex gap-2 mt-4">
-                        <button class="btn btn-primary" type="submit">Next</button>
-                        <button class="btn btn-outline-secondary" type="submit" name="action" value="save_customer">Save Customer Only</button>
+                      <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                        <div>
+                          {% if step > 1 %}
+                            <a class="btn btn-light" href="{% url 'tracker:customer_register' %}?step={{ step|add:'-1' }}">
+                              <i class="fa fa-arrow-left me-2"></i>Back
+                            </a>
+                          {% endif %}
+                        </div>
+                        <div class="d-flex gap-2">
+                          {% if step < 4 %}
+                            <button class="btn btn-primary" type="submit">
+                              Next Step <i class="fa fa-arrow-right ms-2"></i>
+                            </button>
+                          {% else %}
+                            <button class="btn btn-success" type="submit">
+                              <i class="fa fa-check-circle me-2"></i>Submit Registration
+                            </button>
+                          {% endif %}
+                          {% if step == 1 %}
+                            <button class="btn btn-outline-secondary" type="submit" name="action" value="save_customer">
+                              <i class="fa fa-save me-2"></i>Save Customer Only
+                            </button>
+                          {% endif %}
+                        </div>
                       </div>
 
                     {% elif step == 2 %}
-                      <div class="mb-3"><label class="form-label">Service Intent</label></div>
-                      <div class="row g-3">
-                        {% for field in form %}
-                          <div class="col-12">{{ field }} {% if field.errors %}<div class="text-danger f-12">{{ field.errors|striptags }}</div>{% endif %}</div>
-                        {% endfor %}
+                      <div class="mb-4">
+                        <h5 class="mb-3"><i class="fa fa-list me-2"></i>Service Intent</h5>
+                        <div class="card">
+                          <div class="card-body">
+                            <p class="text-muted mb-4">Please select the primary purpose of this customer's visit</p>
+                            <div class="row g-3">
+                              <div class="col-12">
+                                <div class="form-group">
+                                  <div class="d-flex flex-column gap-3">
+                                    <!-- Service Option -->
+                                    <div class="form-check card p-3 border-0 shadow-sm" 
+                                         onclick="document.getElementById('intent-service').click()">
+                                      <input class="form-check-input" type="radio" 
+                                             name="intent" id="intent-service" value="service" required
+                                             {% if form.intent.value == 'service' or not form.intent.value %}checked{% endif %}>
+                                      <label class="form-check-label d-flex align-items-center" for="intent-service">
+                                        <div class="bg-soft-primary rounded p-3 me-3">
+                                          <i class="fa fa-wrench fa-2x text-primary"></i>
+                                        </div>
+                                        <div>
+                                          <h6 class="mb-1">I need a service</h6>
+                                          <p class="mb-0 text-muted small">For car maintenance, repairs, or other services</p>
+                                        </div>
+                                      </label>
+                                    </div>
+
+                                    <!-- Inquiry Option -->
+                                    <div class="form-check card p-3 border-0 shadow-sm"
+                                         onclick="document.getElementById('intent-inquiry').click()">
+                                      <input class="form-check-input" type="radio" 
+                                             name="intent" id="intent-inquiry" value="inquiry"
+                                             {% if form.intent.value == 'inquiry' %}checked{% endif %}>
+                                      <label class="form-check-label d-flex align-items-center" for="intent-inquiry">
+                                        <div class="bg-soft-info rounded p-3 me-3">
+                                          <i class="fa fa-question-circle fa-2x text-info"></i>
+                                        </div>
+                                        <div>
+                                          <h6 class="mb-1">Just an inquiry</h6>
+                                          <p class="mb-0 text-muted small">For questions, quotes, or information requests</p>
+                                        </div>
+                                      </label>
+                                    </div>
+
+                                    <!-- Sales Option -->
+                                    <div class="form-check card p-3 border-0 shadow-sm"
+                                         onclick="document.getElementById('sales-option').click()">
+                                      <input class="form-check-input" type="radio" name="intent" 
+                                             id="sales-option" value="sales"
+                                             {% if form.intent.value == 'sales' %}checked{% endif %}>
+                                      <label class="form-check-label d-flex align-items-center" for="sales-option">
+                                        <div class="bg-soft-success rounded p-3 me-3">
+                                          <i class="fa fa-shopping-cart fa-2x text-success"></i>
+                                        </div>
+                                        <div>
+                                          <h6 class="mb-1">I want to make a purchase</h6>
+                                          <p class="mb-0 text-muted small">For tire sales, parts, or accessories</p>
+                                        </div>
+                                      </label>
+                                    </div>
+                                  </div>
+                                  
+                                  {% if form.intent.errors %}
+                                    <div class="alert alert-danger mt-3 mb-0">
+                                      <i class="fa fa-exclamation-circle me-2"></i>
+                                      {{ form.intent.errors|striptags }}
+                                    </div>
+                                  {% endif %}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                       <div class="d-flex gap-2 mt-4">
                         <a class="btn btn-light" href="{% url 'tracker:customer_register' %}?step=1">Back</a>
@@ -82,18 +235,345 @@
                       </div>
 
                     {% elif step == 3 %}
-                      <div class="mb-3"><label class="form-label">Service/Sales Type</label></div>
-                      <div class="row g-3">
-                        <div class="col-12">
-                          <div class="mb-2 f-w-600">Select services (if applicable)</div>
-                          {{ form.service_type }}
-                          {% if form.service_type.errors %}<div class="text-danger f-12">{{ form.service_type.errors|striptags }}</div>{% endif %}
-                        </div>
-                        <div class="col-12">
-                          <div class="mb-2 f-w-600">Select sales type (optional)</div>
-                          {{ form.sales_type }}
-                          {% if form.sales_type.errors %}<div class="text-danger f-12">{{ form.sales_type.errors|striptags }}</div>{% endif %}
-                        </div>
+                      <div class="mb-4">
+                        <h5 class="mb-3"><i class="fa fa-cogs me-2"></i>Service Type Selection</h5>
+                        
+                        {% if form.intent.value == 'service' %}
+                          <!-- Car Service Form -->
+                          <div class="card mb-4">
+                            <div class="card-header bg-soft-primary">
+                              <h6 class="mb-0"><i class="fa fa-car me-2"></i>Vehicle Information</h6>
+                            </div>
+                            <div class="card-body">
+                              <div class="row g-3">
+                                <!-- Vehicle Make -->
+                                <div class="col-md-4">
+                                  <div class="form-group">
+                                    <label class="form-label fw-500">
+                                      Make <span class="text-danger">*</span>
+                                    </label>
+                                    <select name="vehicle_make" class="form-select" required>
+                                      <option value="">Select Make</option>
+                                      <option value="toyota" {% if form.vehicle_make.value == 'toyota' %}selected{% endif %}>Toyota</option>
+                                      <option value="honda" {% if form.vehicle_make.value == 'honda' %}selected{% endif %}>Honda</option>
+                                      <option value="nissan" {% if form.vehicle_make.value == 'nissan' %}selected{% endif %}>Nissan</option>
+                                      <option value="mitsubishi" {% if form.vehicle_make.value == 'mitsubishi' %}selected{% endif %}>Mitsubishi</option>
+                                      <option value="bmw" {% if form.vehicle_make.value == 'bmw' %}selected{% endif %}>BMW</option>
+                                      <option value="mercedes" {% if form.vehicle_make.value == 'mercedes' %}selected{% endif %}>Mercedes</option>
+                                      <option value="other" {% if form.vehicle_make.value == 'other' %}selected{% endif %}>Other</option>
+                                    </select>
+                                  </div>
+                                </div>
+
+                                <!-- Vehicle Model -->
+                                <div class="col-md-4">
+                                  <div class="form-group">
+                                    <label class="form-label fw-500">
+                                      Model <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" name="vehicle_model" class="form-control" required
+                                           value="{{ form.vehicle_model.value|default:'' }}"
+                                           placeholder="e.g., Corolla">
+                                  </div>
+                                </div>
+
+                                <!-- Year -->
+                                <div class="col-md-4">
+                                  <div class="form-group">
+                                    <label class="form-label fw-500">
+                                      Year <span class="text-danger">*</span>
+                                    </label>
+                                    <select name="vehicle_year" class="form-select" required>
+                                      <option value="">Select Year</option>
+                                      {% with current_year=now|date:"Y" %}
+                                        {% for year in "x"|ljust:"30" %}
+                                          {% with year_num=current_year|add:forloop.counter|add:"-30" %}
+                                            <option value="{{ year_num }}" 
+                                              {% if form.vehicle_year.value == year_num|stringformat:'s' %}selected{% endif %}>
+                                              {{ year_num }}
+                                            </option>
+                                          {% endwith %}
+                                        {% endfor %}
+                                      {% endwith %}
+                                    </select>
+                                  </div>
+                                </div>
+
+                                <!-- Plate Number -->
+                                <div class="col-md-6">
+                                  <div class="form-group">
+                                    <label class="form-label fw-500">
+                                      Plate Number <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" name="plate_number" class="form-control text-uppercase" required
+                                           value="{{ form.plate_number.value|default:'' }}"
+                                           placeholder="e.g., T123ABC">
+                                  </div>
+                                </div>
+
+                                <!-- VIN -->
+                                <div class="col-md-6">
+                                  <div class="form-group">
+                                    <label class="form-label fw-500">
+                                      VIN (Optional)
+                                    </label>
+                                    <input type="text" name="vin" class="form-control"
+                                           value="{{ form.vin.value|default:'' }}"
+                                           placeholder="Vehicle Identification Number">
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <!-- Service Selection -->
+                          <div class="card mb-4">
+                            <div class="card-header bg-soft-primary">
+                              <h6 class="mb-0"><i class="fa fa-tools me-2"></i>Service Selection</h6>
+                            </div>
+                            <div class="card-body">
+                              <div class="mb-4">
+                                <label class="form-label fw-500">Select Services <span class="text-danger">*</span></label>
+                                <div class="row g-3">
+                                  <div class="col-md-6">
+                                    <div class="form-check">
+                                      <input class="form-check-input" type="checkbox" name="services" value="oil_change" 
+                                             id="oil_change" {% if 'oil_change' in form.services.value %}checked{% endif %}>
+                                      <label class="form-check-label" for="oil_change">
+                                        Oil Change
+                                      </label>
+                                    </div>
+                                    <div class="form-check">
+                                      <input class="form-check-input" type="checkbox" name="services" value="engine_diagnostics" 
+                                             id="engine_diagnostics" {% if 'engine_diagnostics' in form.services.value %}checked{% endif %}>
+                                      <label class="form-check-label" for="engine_diagnostics">
+                                        Engine Diagnostics
+                                      </label>
+                                    </div>
+                                    <div class="form-check">
+                                      <input class="form-check-input" type="checkbox" name="services" value="brake_repair" 
+                                             id="brake_repair" {% if 'brake_repair' in form.services.value %}checked{% endif %}>
+                                      <label class="form-check-label" for="brake_repair">
+                                        Brake Repair
+                                      </label>
+                                    </div>
+                                    <div class="form-check">
+                                      <input class="form-check-input" type="checkbox" name="services" value="tire_rotation" 
+                                             id="tire_rotation" {% if 'tire_rotation' in form.services.value %}checked{% endif %}>
+                                      <label class="form-check-label" for="tire_rotation">
+                                        Tire Rotation
+                                      </label>
+                                    </div>
+                                  </div>
+                                  <div class="col-md-6">
+                                    <div class="form-check">
+                                      <input class="form-check-input" type="checkbox" name="services" value="wheel_alignment" 
+                                             id="wheel_alignment" {% if 'wheel_alignment' in form.services.value %}checked{% endif %}>
+                                      <label class="form-check-label" for="wheel_alignment">
+                                        Wheel Alignment
+                                      </label>
+                                    </div>
+                                    <div class="form-check">
+                                      <input class="form-check-input" type="checkbox" name="services" value="battery_check" 
+                                             id="battery_check" {% if 'battery_check' in form.services.value %}checked{% endif %}>
+                                      <label class="form-check-label" for="battery_check">
+                                        Battery Check
+                                      </label>
+                                    </div>
+                                    <div class="form-check">
+                                      <input class="form-check-input" type="checkbox" name="services" value="fluid_top_up" 
+                                             id="fluid_top_up" {% if 'fluid_top_up' in form.services.value %}checked{% endif %}>
+                                      <label class="form-check-label" for="fluid_top_up">
+                                        Fluid Top-Up
+                                      </label>
+                                    </div>
+                                    <div class="form-check">
+                                      <input class="form-check-input" type="checkbox" name="services" value="other" 
+                                             id="other_service" {% if 'other' in form.services.value %}checked{% endif %}>
+                                      <label class="form-check-label" for="other_service">
+                                        Other (specify in description)
+                                      </label>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <!-- Problem Description -->
+                              <div class="mb-4">
+                                <label class="form-label fw-500">
+                                  Problem Description <span class="text-danger">*</span>
+                                </label>
+                                <textarea name="problem_description" class="form-control" rows="3" required
+                                          placeholder="Please describe the issue with your vehicle">{{ form.problem_description.value|default:'' }}</textarea>
+                              </div>
+
+                              <!-- Priority Level -->
+                              <div class="row">
+                                <div class="col-md-6">
+                                  <div class="form-group">
+                                    <label class="form-label fw-500">
+                                      Priority Level <span class="text-danger">*</span>
+                                    </label>
+                                    <select name="priority" class="form-select" required>
+                                      <option value="low" {% if form.priority.value == 'low' %}selected{% endif %}>
+                                        Low Priority
+                                      </option>
+                                      <option value="medium" {% if form.priority.value == 'medium' or not form.priority.value %}selected{% endif %}>
+                                        Medium Priority
+                                      </option>
+                                      <option value="high" {% if form.priority.value == 'high' %}selected{% endif %}>
+                                        High Priority
+                                      </option>
+                                      <option value="urgent" {% if form.priority.value == 'urgent' %}selected{% endif %}>
+                                        Urgent
+                                      </option>
+                                    </select>
+                                  </div>
+                                </div>
+
+                                <!-- Estimated Duration -->
+                                <div class="col-md-6">
+                                  <div class="form-group">
+                                    <label class="form-label fw-500">
+                                      Estimated Duration (minutes)
+                                    </label>
+                                    <input type="number" name="estimated_duration" class="form-control"
+                                           min="15" step="15" value="{{ form.estimated_duration.value|default:'60' }}">
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                        {% elif form.intent.value == 'sales' %}
+                          <!-- Tire Sales Form -->
+                          <div class="card mb-4">
+                            <div class="card-header bg-soft-success">
+                              <h6 class="mb-0"><i class="fa fa-tire me-2"></i>Tire Purchase Details</h6>
+                            </div>
+                            <div class="card-body">
+                              <div class="row g-3">
+                                <!-- Tire Type -->
+                                <div class="col-md-6">
+                                  <div class="form-group">
+                                    <label class="form-label fw-500">
+                                      Tire Type <span class="text-danger">*</span>
+                                    </label>
+                                    <select name="tire_type" class="form-select" required>
+                                      <option value="">Select Type</option>
+                                      <option value="all_season" {% if form.tire_type.value == 'all_season' %}selected{% endif %}>All-Season</option>
+                                      <option value="summer" {% if form.tire_type.value == 'summer' %}selected{% endif %}>Summer</option>
+                                      <option value="winter" {% if form.tire_type.value == 'winter' %}selected{% endif %}>Winter</option>
+                                      <option value="performance" {% if form.tire_type.value == 'performance' %}selected{% endif %}>Performance</option>
+                                      <option value="off_road" {% if form.tire_type.value == 'off_road' %}selected{% endif %}>Off-Road</option>
+                                      <option value="eco" {% if form.tire_type.value == 'eco' %}selected{% endif %}>Eco</option>
+                                      <option value="run_flat" {% if form.tire_type.value == 'run_flat' %}selected{% endif %}>Run-Flat</option>
+                                    </select>
+                                  </div>
+                                </div>
+
+                                <!-- Brand -->
+                                <div class="col-md-6">
+                                  <div class="form-group">
+                                    <label class="form-label fw-500">
+                                      Brand <span class="text-danger">*</span>
+                                    </label>
+                                    <select name="tire_brand" class="form-select" required>
+                                      <option value="">Select Brand</option>
+                                      <option value="michelin" {% if form.tire_brand.value == 'michelin' %}selected{% endif %}>Michelin</option>
+                                      <option value="bridgestone" {% if form.tire_brand.value == 'bridgestone' %}selected{% endif %}>Bridgestone</option>
+                                      <option value="continental" {% if form.tire_brand.value == 'continental' %}selected{% endif %}>Continental</option>
+                                      <option value="pirelli" {% if form.tire_brand.value == 'pirelli' %}selected{% endif %}>Pirelli</option>
+                                      <option value="goodyear" {% if form.tire_brand.value == 'goodyear' %}selected{% endif %}>Goodyear</option>
+                                      <option value="dunlop" {% if form.tire_brand.value == 'dunlop' %}selected{% endif %}>Dunlop</option>
+                                      <option value="yokohama" {% if form.tire_brand.value == 'yokohama' %}selected{% endif %}>Yokohama</option>
+                                    </select>
+                                  </div>
+                                </div>
+
+                                <!-- Size -->
+                                <div class="col-md-4">
+                                  <div class="form-group">
+                                    <label class="form-label fw-500">
+                                      Width <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="input-group">
+                                      <input type="number" name="tire_width" class="form-control" 
+                                             min="100" max="400" step="5" required
+                                             value="{{ form.tire_width.value|default:'205' }}">
+                                      <span class="input-group-text">mm</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div class="col-md-4">
+                                  <div class="form-group">
+                                    <label class="form-label fw-500">
+                                      Aspect Ratio <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="input-group">
+                                      <input type="number" name="aspect_ratio" class="form-control" 
+                                             min="30" max="90" step="5" required
+                                             value="{{ form.aspect_ratio.value|default:'55' }}">
+                                      <span class="input-group-text">%</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div class="col-md-4">
+                                  <div class="form-group">
+                                    <label class="form-label fw-500">
+                                      Rim Size <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="input-group">
+                                      <input type="number" name="rim_size" class="form-control" 
+                                             min="10" max="25" step="0.5" required
+                                             value="{{ form.rim_size.value|default:'16' }}">
+                                      <span class="input-group-text">inch</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <!-- Quantity -->
+                                <div class="col-md-6">
+                                  <div class="form-group">
+                                    <label class="form-label fw-500">
+                                      Quantity <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="number" name="quantity" class="form-control" 
+                                           min="1" max="100" required
+                                           value="{{ form.quantity.value|default:'4' }}">
+                                  </div>
+                                </div>
+
+                                <!-- Condition -->
+                                <div class="col-md-6">
+                                  <div class="form-group">
+                                    <label class="form-label fw-500">
+                                      Condition <span class="text-danger">*</span>
+                                    </label>
+                                    <select name="condition" class="form-select" required>
+                                      <option value="new" {% if form.condition.value == 'new' or not form.condition.value %}selected{% endif %}>New</option>
+                                      <option value="used" {% if form.condition.value == 'used' %}selected{% endif %}>Used</option>
+                                      <option value="refurbished" {% if form.condition.value == 'refurbished' %}selected{% endif %}>Refurbished</option>
+                                    </select>
+                                  </div>
+                                </div>
+
+                                <!-- Additional Notes -->
+                                <div class="col-12">
+                                  <div class="form-group">
+                                    <label class="form-label fw-500">
+                                      Special Requests
+                                    </label>
+                                    <textarea name="special_requests" class="form-control" rows="2"
+                                              placeholder="Any special requests or additional information">{{ form.special_requests.value|default:'' }}</textarea>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        {% endif %}
                       </div>
                       <div class="d-flex gap-2 mt-4">
                         <a class="btn btn-light" href="{% url 'tracker:customer_register' %}?step=2">Back</a>
@@ -101,7 +581,275 @@
                       </div>
 
                     {% else %}
-                      <div class="mb-3"><label class="form-label">Customer Type & Order</label></div>
+                      <div class="mb-4">
+                        <h5 class="mb-3"><i class="fa fa-check-circle me-2"></i>Review & Submit</h5>
+                        
+                        <!-- Customer Information Review -->
+                        <div class="card mb-4">
+                          <div class="card-header bg-soft-primary">
+                            <h6 class="mb-0"><i class="fa fa-user me-2"></i>Customer Information</h6>
+                          </div>
+                          <div class="card-body">
+                            <div class="row">
+                              <div class="col-md-6">
+                                <p class="mb-2"><strong>Full Name:</strong> {{ form.full_name.value }}</p>
+                                <p class="mb-2"><strong>Phone:</strong> +255{{ form.phone.value }}</p>
+                                {% if form.email.value %}
+                                  <p class="mb-2"><strong>Email:</strong> {{ form.email.value }}</p>
+                                {% endif %}
+                              </div>
+                              <div class="col-md-6">
+                                {% if form.address.value %}
+                                  <p class="mb-2"><strong>Address:</strong> {{ form.address.value }}</p>
+                                {% endif %}
+                                {% if form.notes.value %}
+                                  <p class="mb-2"><strong>Notes:</strong> {{ form.notes.value }}</p>
+                                {% endif %}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <!-- Customer Type Classification -->
+                        <div class="card mb-4">
+                          <div class="card-header bg-soft-primary">
+                            <h6 class="mb-0"><i class="fa fa-users me-2"></i>Customer Type</h6>
+                          </div>
+                          <div class="card-body">
+                            <div class="row g-3">
+                              <div class="col-md-6">
+                                <div class="form-group">
+                                  <label class="form-label fw-500">
+                                    Customer Type <span class="text-danger">*</span>
+                                  </label>
+                                  <select name="customer_type" class="form-select" id="customer-type" required>
+                                    <option value="">Select Customer Type</option>
+                                    <option value="personal" {% if form.customer_type.value == 'personal' or not form.customer_type.value %}selected{% endif %}>Personal</option>
+                                    <option value="government" {% if form.customer_type.value == 'government' %}selected{% endif %}>Government</option>
+                                    <option value="ngo" {% if form.customer_type.value == 'ngo' %}selected{% endif %}>NGO</option>
+                                    <option value="company" {% if form.customer_type.value == 'company' %}selected{% endif %}>Private Company</option>
+                                    <option value="bodaboda" {% if form.customer_type.value == 'bodaboda' %}selected{% endif %}>Bodaboda</option>
+                                  </select>
+                                </div>
+                              </div>
+                              
+                              <!-- Dynamic Fields Based on Customer Type -->
+                              <div id="customer-type-fields">
+                                <!-- Personal Customer Fields -->
+                                <div class="customer-type-section" id="personal-fields" style="display: none;">
+                                  <div class="col-12">
+                                    <div class="form-group">
+                                      <label class="form-label fw-500">
+                                        Personal Type <span class="text-danger">*</span>
+                                      </label>
+                                      <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="personal_type" 
+                                               id="owner" value="owner" 
+                                               {% if form.personal_type.value == 'owner' or not form.personal_type.value %}checked{% endif %} required>
+                                        <label class="form-check-label" for="owner">
+                                          Owner
+                                        </label>
+                                      </div>
+                                      <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="personal_type" 
+                                               id="driver" value="driver"
+                                               {% if form.personal_type.value == 'driver' %}checked{% endif %}>
+                                        <label class="form-check-label" for="driver">
+                                          Driver
+                                        </label>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <!-- Organization Fields (Government/NGO/Company) -->
+                                <div class="customer-type-section" id="organization-fields" style="display: none;">
+                                  <div class="col-md-6">
+                                    <div class="form-group">
+                                      <label class="form-label fw-500">
+                                        Organization Name <span class="text-danger">*</span>
+                                      </label>
+                                      <input type="text" name="organization_name" class="form-control"
+                                             value="{{ form.organization_name.value|default:'' }}"
+                                             placeholder="Enter organization name">
+                                    </div>
+                                  </div>
+                                  <div class="col-md-6">
+                                    <div class="form-group">
+                                      <label class="form-label fw-500">
+                                        Tax Number <span class="text-danger">*</span>
+                                      </label>
+                                      <input type="text" name="tax_number" class="form-control"
+                                             value="{{ form.tax_number.value|default:'' }}"
+                                             placeholder="Enter tax number">
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <!-- Bodaboda Specific Fields -->
+                                <div class="customer-type-section" id="bodaboda-fields" style="display: none;">
+                                  <div class="col-md-6">
+                                    <div class="form-group">
+                                      <label class="form-label fw-500">
+                                        Rider's License Number <span class="text-danger">*</span>
+                                      </label>
+                                      <input type="text" name="rider_license" class="form-control"
+                                             value="{{ form.rider_license.value|default:'' }}"
+                                             placeholder="Enter rider's license number">
+                                    </div>
+                                  </div>
+                                  <div class="col-md-6">
+                                    <div class="form-group">
+                                      <label class="form-label fw-500">
+                                        Bike Registration Number <span class="text-danger">*</span>
+                                      </label>
+                                      <input type="text" name="bike_registration" class="form-control"
+                                             value="{{ form.bike_registration.value|default:'' }}"
+                                             placeholder="Enter bike registration number">
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <!-- Service/Order Details Review -->
+                        {% if form.intent.value == 'service' %}
+                          <div class="card mb-4">
+                            <div class="card-header bg-soft-primary">
+                              <h6 class="mb-0"><i class="fa fa-tools me-2"></i>Service Details</h6>
+                            </div>
+                            <div class="card-body">
+                              <div class="row">
+                                <div class="col-md-6">
+                                  <h6>Vehicle Information</h6>
+                                  <p class="mb-1"><strong>Make/Model:</strong> {{ form.vehicle_make.value|title }} {{ form.vehicle_model.value|title }}</p>
+                                  <p class="mb-1"><strong>Year:</strong> {{ form.vehicle_year.value }}</p>
+                                  <p class="mb-1"><strong>Plate:</strong> {{ form.plate_number.value|upper }}</p>
+                                  {% if form.vin.value %}
+                                    <p class="mb-1"><strong>VIN:</strong> {{ form.vin.value|upper }}</p>
+                                  {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                  <h6>Service Request</h6>
+                                  <p class="mb-1"><strong>Priority:</strong> {{ form.priority.value|title }}</p>
+                                  <p class="mb-1"><strong>Services Selected:</strong></p>
+                                  <ul class="mb-1">
+                                    {% for service in form.services.value %}
+                                      <li>{{ service|title|replace:"_: " }}</li>
+                                    {% endfor %}
+                                  </ul>
+                                </div>
+                              </div>
+                              {% if form.problem_description.value %}
+                                <div class="mt-3">
+                                  <h6>Problem Description:</h6>
+                                  <div class="p-3 bg-light rounded">
+                                    {{ form.problem_description.value|linebreaksbr }}
+                                  </div>
+                                </div>
+                              {% endif %}
+                            </div>
+                          </div>
+                        
+                        {% elif form.intent.value == 'sales' %}
+                          <div class="card mb-4">
+                            <div class="card-header bg-soft-success">
+                              <h6 class="mb-0"><i class="fa fa-shopping-cart me-2"></i>Order Details</h6>
+                            </div>
+                            <div class="card-body">
+                              <div class="row">
+                                <div class="col-md-6">
+                                  <h6>Tire Information</h6>
+                                  <p class="mb-1"><strong>Brand:</strong> {{ form.tire_brand.value|title }}</p>
+                                  <p class="mb-1"><strong>Type:</strong> {{ form.tire_type.value|title|replace:"_: " }}</p>
+                                  <p class="mb-1"><strong>Size:</strong> {{ form.tire_width.value }}/{{ form.aspect_ratio.value }} R{{ form.rim_size.value }}</p>
+                                  <p class="mb-1"><strong>Condition:</strong> {{ form.condition.value|title }}</p>
+                                </div>
+                                <div class="col-md-6">
+                                  <h6>Order Information</h6>
+                                  <p class="mb-1"><strong>Quantity:</strong> {{ form.quantity.value }}</p>
+                                  {% if form.special_requests.value %}
+                                    <p class="mb-1"><strong>Special Requests:</strong> {{ form.special_requests.value }}</p>
+                                  {% endif %}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        {% endif %}
+
+                        <!-- Terms and Conditions -->
+                        <div class="card mb-4">
+                          <div class="card-header bg-soft-primary">
+                            <h6 class="mb-0"><i class="fa fa-file-alt me-2"></i>Terms & Conditions</h6>
+                          </div>
+                          <div class="card-body">
+                            <div class="form-check mb-3">
+                              <input class="form-check-input" type="checkbox" id="terms" required>
+                              <label class="form-check-label" for="terms">
+                                I agree to the <a href="#" data-bs-toggle="modal" data-bs-target="#termsModal">Terms and Conditions</a>
+                              </label>
+                            </div>
+                            <div class="alert alert-info mb-0">
+                              <i class="fa fa-info-circle me-2"></i>
+                              Please review all information before submitting. You can go back to make changes if needed.
+                            </div>
+                          </div>
+                        </div>
+                        <div class="card mb-4">
+                          <div class="card-header bg-soft-primary">
+                            <h6 class="mb-0"><i class="fa fa-user me-2"></i>Customer Information</h6>
+                          </div>
+                          <div class="card-body">
+                            <div class="row">
+                              <div class="col-md-6">
+                                <p class="mb-2"><strong>Full Name:</strong> {{ form.full_name.value }}</p>
+                                <p class="mb-2"><strong>Phone:</strong> {{ form.phone.value }}</p>
+                                {% if form.email.value %}
+                                  <p class="mb-2"><strong>Email:</strong> {{ form.email.value }}</p>
+                                {% endif %}
+                              </div>
+                              <div class="col-md-6">
+                                {% if form.address.value %}
+                                  <p class="mb-2"><strong>Address:</strong> {{ form.address.value }}</p>
+                                {% endif %}
+                                {% if form.notes.value %}
+                                  <p class="mb-2"><strong>Notes:</strong> {{ form.notes.value }}</p>
+                                {% endif %}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {% if service_details %}
+                          <div class="card mb-4">
+                            <div class="card-header bg-soft-primary">
+                              <h6 class="mb-0"><i class="fa fa-tools me-2"></i>Service Details</h6>
+                            </div>
+                            <div class="card-body">
+                              {% include 'tracker/partials/service_summary.html' %}
+                            </div>
+                          </div>
+                        {% endif %}
+
+                        <div class="card mb-4">
+                          <div class="card-header bg-soft-primary">
+                            <h6 class="mb-0"><i class="fa fa-file-alt me-2"></i>Terms & Conditions</h6>
+                          </div>
+                          <div class="card-body">
+                            <div class="form-check mb-3">
+                              <input class="form-check-input" type="checkbox" id="terms" required>
+                              <label class="form-check-label" for="terms">
+                                I agree to the <a href="#" data-bs-toggle="modal" data-bs-target="#termsModal">Terms and Conditions</a>
+                              </label>
+                            </div>
+                            <div class="alert alert-info">
+                              <i class="fa fa-info-circle me-2"></i>
+                              Please review all information before submitting. You can go back to make changes if needed.
+                            </div>
+                          </div>
+                        </div>
                       <div class="row g-4">
                         <div class="col-md-6">
                           <h6 class="mb-2">Customer Type</h6>
@@ -239,4 +987,40 @@
   </div>
 
   <script src="{% static 'assets/js/form-wizard/form-wizard.js' %}"></script>
+  <script src="{% static 'js/customer_registration.js' %}"></script>
+  <script src="{% static 'js/customer_type_handler.js' %}"></script>
+  
+  <style>
+    /* Custom styles for the registration form */
+    .form-check.card {
+      cursor: pointer;
+      transition: all 0.2s ease-in-out;
+    }
+    .form-check.card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+    }
+    .form-check-input:checked + .form-check-label .card {
+      border-color: var(--bs-primary) !important;
+      background-color: rgba(13, 110, 253, 0.05);
+    }
+    .bg-soft-primary {
+      background-color: rgba(13, 110, 253, 0.1);
+    }
+    .bg-soft-success {
+      background-color: rgba(25, 135, 84, 0.1);
+    }
+    .bg-soft-info {
+      background-color: rgba(13, 202, 240, 0.1);
+    }
+    .text-soft-primary {
+      color: rgba(13, 110, 253, 0.8);
+    }
+    .text-soft-success {
+      color: rgba(25, 135, 84, 0.8);
+    }
+    .text-soft-info {
+      color: rgba(13, 202, 240, 0.8);
+    }
+  </style>
 {% endblock %}

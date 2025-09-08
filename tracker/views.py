@@ -938,23 +938,45 @@ def api_inventory_brands(request: HttpRequest):
 
 @login_required
 def api_inventory_stock(request: HttpRequest):
-    from django.db.models import Sum, Q
-    name = request.GET.get("name", "").strip()
-    brand = request.GET.get("brand", "").strip()
-    if not name:
-        return JsonResponse({"available": 0})
-    # Treat special alias 'Unbranded' as brand is empty or null
-    effective_brand = None if brand.lower() == 'unbranded' else brand
-    cache_key = f"api_inv_stock_{name}_{(effective_brand or 'any')}"
-    data = cache.get(cache_key)
-    if data is None:
-        qs = InventoryItem.objects.filter(name=name)
-        if effective_brand is not None and effective_brand != "":
-            qs = qs.filter(brand=effective_brand)
-        elif brand.lower() == 'unbranded':
-            qs = qs.filter(Q(brand__isnull=True) | Q(brand=""))
-        total = qs.aggregate(total=Sum("quantity")).get("total") or 0
-        data = {"available": total}
+    """API endpoint to check inventory stock for an item"""
+    name = request.GET.get('name', '').strip()
+    brand = request.GET.get('brand', '').strip()
+    
+    if not name or not brand:
+        return JsonResponse({'error': 'Both name and brand parameters are required'}, status=400)
+    
+    try:
+        item = InventoryItem.objects.get(name__iexact=name, brand__iexact=brand)
+        return JsonResponse({
+            'name': item.name,
+            'brand': item.brand,
+            'quantity': item.quantity,
+            'unit': item.unit,
+            'unit_price': item.unit_price
+        })
+    except InventoryItem.DoesNotExist:
+        return JsonResponse({'error': 'Item not found'}, status=404)
+
+@login_required
+def api_customer_vehicles(request: HttpRequest, customer_id: int):
+    """API endpoint to get vehicles for a specific customer"""
+    try:
+        customer = Customer.objects.get(pk=customer_id)
+        vehicles = [{
+            'id': v.id,
+            'make': v.make or '',
+            'model': v.model or '',
+            'year': v.year,
+            'license_plate': v.plate_number or '',
+            'vin': v.vin or ''
+        } for v in customer.vehicles.all()]
+        
+        return JsonResponse({
+            'success': True,
+            'vehicles': vehicles
+        })
+    except Customer.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Customer not found'}, status=404)
         cache.set(cache_key, data, 60)
     return JsonResponse(data)
 

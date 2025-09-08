@@ -58,4 +58,5 @@ urlpatterns = [
     path("api/inventory/items/", views.api_inventory_items, name="api_inventory_items"),
     path("api/inventory/brands/", views.api_inventory_brands, name="api_inventory_brands"),
     path("api/inventory/stock/", views.api_inventory_stock, name="api_inventory_stock"),
+    path("api/customers/<int:customer_id>/vehicles/", views.api_customer_vehicles, name="api_customer_vehicles"),
 ]
